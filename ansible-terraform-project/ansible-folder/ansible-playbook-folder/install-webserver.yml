@@ -1,0 +1,23 @@
+---
+- hosts: mangednodes
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Install nginx
+      dnf:
+        name: nginx
+        state: latest
+
+    - name: start the nginx service
+      service:
+        name: nginx
+        state: started
+    - name: create index.html file
+      copy:
+        content: "<html><body><h1>Hello from Ansible!</h1></body></html>"
+        dest: /usr/share/nginx/index.html
+        mode: 644
+    - name: service reload
+      service:
+        name: nginx
+        state: restarted
