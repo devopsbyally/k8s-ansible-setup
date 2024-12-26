@@ -1,0 +1,221 @@
+---
+- name: Set up Kubernetes cluster version 1.30 with kubeadm and containerd on RHEL
+  hosts: all
+  become: true
+  tasks:
+    - name: Set the hostname using hostnamectl
+      command: hostnamectl set-hostname {{ node_name }}
+      tags:
+        - common
+
+    - name: Disable swap
+      command: swapoff -a
+      tags:
+        - common
+
+    - name: Permanently disable swap
+      lineinfile:
+        path: /etc/fstab
+        regexp: '^.*swap.*'
+        line: '# disabled by Ansible playbook'
+      tags:
+        - common
+    - name: Set net.ipv4.ip_forward to 1 in sysctl configuration file
+      copy:
+        dest: /etc/sysctl.d/k8s.conf
+        content: |
+          net.ipv4.ip_forward = 1
+        owner: root
+        group: root
+        mode: '0644'
+      tags:
+        - common
+
+    - name: Apply sysctl parameters without reboot
+      command: sysctl --system
+      tags:
+        - common
+
+    - name: Verify net.ipv4.ip_forward is set to 1
+      command: sysctl net.ipv4.ip_forward
+      register: sysctl_result
+      changed_when: false
+      tags:
+        - common
+
+    - name: Display the result of sysctl net.ipv4.ip_forward
+      debug:
+        var: sysctl_result.stdout 
+      tags:
+        - common
+    # Subsection for containerd installation
+    - name: Remove Docker packages using dnf
+      dnf:
+        name:
+          - docker
+          - docker-client
+          - docker-client-latest
+          - docker-common
+          - docker-latest
+          - docker-latest-logrotate
+          - docker-logrotate
+          - docker-engine
+        state: absent
+      tags:
+        - common
+    - name: Install dnf-plugins-core
+      dnf:
+        name: dnf-plugins-core
+        state: present 
+      tags:
+        - common
+    - name: Add Docker CE repository
+      command: dnf config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+      tags:
+        - common    
+    - name: Install containerd container engine
+      dnf:
+        name: containerd
+        state: present
+      tags:
+        - common
+    - name: Generate default containerd config
+      shell: containerd config default > /etc/containerd/config.toml
+      tags:
+        - common
+    - name: Replace SystemdCgroup=false with SystemdCgroup=true in config.toml
+      lineinfile:
+        path: /etc/containerd/config.toml
+        regexp: '^\s*SystemdCgroup\s*=\s*false'
+        line: '    SystemdCgroup = true'
+        backup: yes
+      tags:
+        - common  
+
+    - name: start and enable containerd service
+      service:
+        name: containerd
+        state: restarted
+        enabled: yes
+      tags:
+        - common
+
+  # Subsection for Kubernetes installation (kubeadm, kubelet, kubectl)
+
+    - name: Disable SELinux (Required for Kubernetes)
+      selinux:
+        state: disabled
+      tags:
+        - common
+
+    - name: Add Kubernetes yum repository
+      copy:
+        content: |
+          [kubernetes]
+          name=Kubernetes
+          baseurl=https://pkgs.k8s.io/core:/stable:/v1.30/rpm/
+          enabled=1
+          gpgcheck=1
+          gpgkey=https://pkgs.k8s.io/core:/stable:/v1.30/rpm/repodata/repomd.xml.key
+          exclude=kubelet kubeadm kubectl cri-tools kubernetes-cni
+        dest: /etc/yum.repos.d/kubernetes.repo
+        owner: root
+        group: root
+        mode: '0644'
+      tags:
+        - common
+
+    - name: Install kubelet, kubeadm, and kubectl
+      yum:
+        name:
+          - kubelet
+          - kubeadm
+          - kubectl
+        state: present
+        disable_excludes: kubernetes
+      tags:
+        - common
+
+    - name: Enable and start kubelet service
+      service:
+        name: kubelet
+        state: started
+        enabled: yes
+      tags:
+        - common     
+    # Subsection for Initialize Kubernetes control-plane node
+
+- name: Initialize Kubernetes control-plane node
+  hosts: master
+  become: true
+  tasks:
+
+    - name: Initialize the Kubernetes control-plane node with kubeadm
+      command: kubeadm init --pod-network-cidr 10.244.0.0/16 --cri-socket unix:///var/run/containerd/containerd.sock
+      register: kubeadm_init_output
+      tags:
+        - master
+
+    - name: Show kubeadm init output
+      debug:
+        var: kubeadm_init_output.stdout_lines
+      tags:
+        - master
+    - name: Extract kubeadm join command
+      set_fact:
+        kubeadm_join_command: "{{ (kubeadm_init_output.stdout_lines | join(' ')) | regex_search('kubeadm join .+?sha256:[a-z0-9]+', multiline=True) | regex_replace('\\\\|\\t', '') | regex_replace(' +', ' ')}}"
+      tags:
+        - master  
+    - name: Show extracted kubeadm join command
+      debug:
+        msg: "{{ kubeadm_join_command }}"
+      tags:
+        - master
+    - name: Create .kube directory for the ec2-user if it doesn't exist
+      file:
+        path: /home/ec2-user/.kube
+        state: directory
+        owner: ec2-user
+        group: ec2-user
+        mode: '0700'
+      become: false  # Run this task as ec2-user, not root
+      tags:
+        - master
+
+    - name: Copy kubeconfig for ec2-user
+      copy:
+        src: /etc/kubernetes/admin.conf
+        dest: /home/ec2-user/.kube/config
+        remote_src: true
+        owner: ec2-user
+        group: ec2-user
+        mode: '0644'
+      become: true
+      tags:
+        - master
+
+    - name: Change ownership of kubeconfig file
+      file:
+        path: /home/ec2-user/.kube/config
+        owner: ec2-user
+        group: ec2-user
+        mode: '0644'
+      become: true # Run this task as  root
+      tags:
+        - master    
+
+    - name: Install Weave Net network plugin on master
+      shell: kubectl apply -f https://reweave.azurewebsites.net/k8s/v1.30/net.yaml
+      environment:
+        KUBECONFIG: "/etc/kubernetes/admin.conf"
+      tags:
+        - master
+
+- name: Set up Kubernetes Worker Nodes
+  hosts: worker
+  become: true
+  tasks: 
+    - name: Join worker node to Kubernetes cluster
+      command: "{{ hostvars[groups['master'][0]].kubeadm_join_command }}"
+      tags:
+        - worker      
