@@ -16,74 +16,76 @@ Ensure the following tools are installed on your local system:
 
 - **Terraform**: To provision the infrastructure.
 - **Ansible**: To configure Kubernetes.
-- **kubeadm**: For Kubernetes cluster setup.
 - **AWS CLI**: To interact with AWS resources.
 - **jq**: To parse JSON outputs from Terraform.
 - **bash**: To execute the shell script.
 
-Also, ensure you have an AWS account with credentials configured.
+## Setup and Execution
 
-## Setup Steps
+### Steps : The deploy_k8s.sh shell script automates the entire process
 
-1. Clone the repository and navigate to the project directory:
-   ```bash
-   git clone <repository-url>
-   cd <project-directory>
-Edit terraform/variables.tf to set your AWS region, instance types, and other configurations.
+1. Provisions EC2 instances using Terraform.
+2. Updates the ansible_inventory file with IP addresses of the provisioned nodes.
+3. Runs the Ansible playbooks for setting up Kubernetes on the master and worker nodes.
 
-Initialize and apply the Terraform configurations:
+# Kubernetes Cluster Setup and Status
 
-bash
-Copy code
-cd terraform
-terraform init
-terraform apply
-Update the ansible_inventory file with the IPs of the EC2 instances created by Terraform.
+Once the deploy_k8s.sh shell script run successfully Kubernetes cluster configuration and the current status of nodes and pods in the cluster looks like belows:
 
-Run the shell script to configure Kubernetes:
+## Cluster Nodes
 
-bash
-Copy code
-./deploy_k8s.sh
-Verification
-After the script completes, verify the Kubernetes cluster:
+The Kubernetes cluster consists of one master node and two worker nodes. Below is the status of the nodes:
 
-Check the nodes:
+| Node Name           | Status | Roles           | Age   | Kubernetes Version |
+|---------------------|--------|-----------------|-------|---------------------|
+| k8s-master-node     | Ready  | control-plane   | 76s   | v1.30.8            |
+| k8s-worker-node-1   | Ready  | <none>          | 19s   | v1.30.8            |
+| k8s-worker-node-2   | Ready  | <none>          | 17s   | v1.30.8            |
 
-bash
-Copy code
+## Cluster Pods
+
+The cluster has several system pods running across different nodes. Below is the status of the pods in the `kube-system` namespace:
+
+| Namespace   | Pod Name                                | Ready | Status  | Restarts | Age    |
+|-------------|-----------------------------------------|-------|---------|----------|--------|
+| kube-system | coredns-55cb58b774-4zmfn               | 1/1   | Running | 0        | 2m29s  |
+| kube-system | coredns-55cb58b774-5mzxp               | 1/1   | Running | 0        | 2m29s  |
+| kube-system | etcd-k8s-master-node                   | 1/1   | Running | 0        | 2m45s  |
+| kube-system | kube-apiserver-k8s-master-node         | 1/1   | Running | 0        | 2m45s  |
+| kube-system | kube-controller-manager-k8s-master-node| 1/1   | Running | 0        | 2m46s  |
+| kube-system | kube-proxy-hrz6j                       | 1/1   | Running | 0        | 2m29s  |
+| kube-system | kube-proxy-kmslk                       | 1/1   | Running | 0        | 111s   |
+| kube-system | kube-proxy-prx4z                       | 1/1   | Running | 0        | 109s   |
+| kube-system | kube-scheduler-k8s-master-node         | 1/1   | Running | 0        | 2m45s  |
+| kube-system | weave-net-rdng6                        | 2/2   | Running | 1 (73s ago) | 111s |
+| kube-system | weave-net-sggbl                        | 2/2   | Running | 0        | 109s   |
+| kube-system | weave-net-tx7m4                        | 2/2   | Running | 1 (2m16s ago) | 2m21s |
+
+## Key Observations
+
+- All nodes are in the `Ready` state, indicating they are active and functioning correctly.
+- System pods such as `coredns`, `etcd`, `kube-apiserver`, `kube-controller-manager`, and `kube-scheduler` are running on the master node.
+- Network-related pods (`weave-net`) and `kube-proxy` are running on both master and worker nodes.
+- No pod is in a failed or crash loop state.
+
+## Notes
+
+- The cluster is running Kubernetes version **v1.30.8**.
+- The Weave Net pods have minor restarts, likely due to initialization, but they are now stable.
+
+## Commands to Reproduce
+
+You can verify the cluster status using the following commands:
+```bash
 kubectl get nodes
-Example Output:
-
-css
-Copy code
-NAME                STATUS   ROLES           AGE   VERSION
-k8s-master-node     Ready    control-plane   76s   v1.30.8
-k8s-worker-node-1   Ready    <none>          19s   v1.30.8
-k8s-worker-node-2   Ready    <none>          17s   v1.30.8
-Check the pods:
-
-bash
-Copy code
 kubectl get pods -A
-Example Output:
 
-sql
-Copy code
-NAMESPACE     NAME                                      READY   STATUS    RESTARTS   AGE
-kube-system   coredns-55cb58b774-4zmfn                  1/1     Running   0          2m29s
-kube-system   kube-apiserver-k8s-master-node            1/1     Running   0          2m45s
-...
-Notes
-The setup uses Weave Net as the default CNI plugin for Kubernetes networking.
-Ensure proper IAM permissions are configured for the AWS account to provision resources using Terraform.
-License
-This project is licensed under the MIT License. See the LICENSE file for details.
 
-typescript
-Copy code
 
-Replace `<repository-url>` and `<project-directory>` with the appropriate values for your project. Let me know if you need any additional changes!
+
+
+
+
 
 
 
