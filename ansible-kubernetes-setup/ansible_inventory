@@ -1,5 +1,6 @@
 [master]
-52.23.187.164 ansible_user=ec2-user ansible_ssh_private_key_file=/Users/rahulranjan/Downloads/ecs-eks-cluster-node.pem node_name=master-node
+34.236.152.83 ansible_user=ec2-user ansible_ssh_private_key_file=/Users/rahulranjan/Downloads/ecs-eks-cluster-node.pem node_name=k8s-master-node
 
 [worker]
-18.208.212.248 ansible_user=ec2-user ansible_ssh_private_key_file=/Users/rahulranjan/Downloads/ecs-eks-cluster-node.pem node_name=worker-node-1
+34.228.200.163 ansible_user=ec2-user ansible_ssh_private_key_file=/Users/rahulranjan/Downloads/ecs-eks-cluster-node.pem node_name=k8s-worker-node-1
+52.91.129.128 ansible_user=ec2-user ansible_ssh_private_key_file=/Users/rahulranjan/Downloads/ecs-eks-cluster-node.pem node_name=k8s-worker-node-2
