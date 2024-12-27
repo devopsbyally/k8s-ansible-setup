@@ -211,11 +211,3 @@
       tags:
         - master
 
-- name: Set up Kubernetes Worker Nodes
-  hosts: worker
-  become: true
-  tasks: 
-    - name: Join worker node to Kubernetes cluster
-      command: "{{ hostvars[groups['master'][0]].kubeadm_join_command }}"
-      tags:
-        - worker      
