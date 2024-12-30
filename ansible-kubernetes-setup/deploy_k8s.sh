@@ -29,7 +29,7 @@ WORKER_NODE2_IP=$(terraform output -raw workernode2_public_ip )
 # Step 5: Navigate back to the original directory
 cd ..
 # Verify variables are set
-echo "Master IP: $MASTER_IP"
+echo "Master IP: $MASTER_IP" 
 echo "Worker Node 1 IP: $WORKER_NODE1_IP"
 echo "Worker Node 2 IP: $WORKER_NODE2_IP"
 # Step 4: update the ansible inventory file
